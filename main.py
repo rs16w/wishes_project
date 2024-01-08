@@ -12,6 +12,7 @@ from uuid import UUID
 from fastapi import FastAPI, Path, Query, Body, Cookie, Header
 
 from pydantic import BaseModel, Field, EmailStr
+from enum import IntEnum
 
 from fastapi import FastAPI, Response
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -30,58 +31,83 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
-from pydantic import BaseModel
+from pydantic import BaseModel, UUID4
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi import FastAPI, WebSocket
 from fastapi.responses import HTMLResponse
+import uuid
 
 app = FastAPI()
 
-html = """
-<!DOCTYPE html>
-<html>
-    <head>
-        <title>Chat</title>
-    </head>
-    <body>
-        <h1>WebSocket Chat</h1>
-        <form action="" onsubmit="sendMessage(event)">
-            <input type="text" id="messageText" autocomplete="off"/>
-            <button>Send</button>
-        </form>
-        <ul id='messages'>
-        </ul>
-        <script>
-            var ws = new WebSocket("ws://localhost:8000/ws");
-            ws.onmessage = function(event) {
-                var messages = document.getElementById('messages')
-                var message = document.createElement('li')
-                var content = document.createTextNode(event.data)
-                message.appendChild(content)
-                messages.appendChild(message)
-            };
-            function sendMessage(event) {
-                var input = document.getElementById("messageText")
-                ws.send(input.value)
-                input.value = ''
-                event.preventDefault()
-            }
-        </script>
-    </body>
-</html>
-"""
+
+class UserBase(BaseModel):
+    nickname: str = Field(
+        default='John Doe', max_length=50, examples=['John Doe']
+    )
 
 
-@app.get("/")
-async def get():
-    return HTMLResponse(html)
+class UserCreated(UserBase):
+    uuid: UUID4 = Field(
+        default=uuid.uuid4()
+    )
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    while True:
-        data = await websocket.receive_text()
-        await websocket.send_text(f"Message text was: {data}")
+class WishBase(BaseModel):
+    name: str
+    description: str | None = Field(
+        default=None, title="The description of the item", max_length=300
+    )
+    price: float | None = Field(default=None, examples=[3.2])
+    owner: UserBase
+
+
+class WishCreated(WishBase):
+    uuid: UUID4
+
+
+# ________________WISHES________________
+@app.post("/wishes", tags=['wishes'], response_model=WishCreated)
+async def create_wish(wish: WishBase = Body()) -> Any:
+    return WishCreated(uuid=uuid.uuid4(), **wish.model_dump())
+
+
+@app.get("/wishes", tags=['wishes'])
+async def get_wishes_list():
+    return ['all_list']
+
+
+@app.get("/wishes/{wish_id}", tags=['wishes'])
+async def get_wish(wish_id: Annotated[int, Path(title="The ID of the wish item to get", ge=0, example=1)]):
+    return wish_id
+
+
+@app.patch("/wishes/{wish_id}", tags=['wishes'])
+async def update_item(wish_id: Annotated[int, Path(title="The ID of the wish item to get", ge=0, example=1)],
+                      wish: WishBase):
+    results = {"item_id": wish_id, "wish": wish}
+    return results
+
+
+# ________________Users________________
+@app.post("/users", tags=['users'], response_model=UserCreated)
+async def create_user(user: UserBase = Body()) -> Any:
+    return UserCreated(uuid=uuid.uuid4(), **user.model_dump())
+
+
+@app.get("/users", tags=['users'])
+async def get_users_list():
+    return ['all_list']
+
+
+@app.get("/users/{user_id}", tags=['users'])
+async def get_user(user_id: Annotated[int, Path(title="The ID of the user to get", ge=0, example=1)]):
+    return user_id
+
+
+@app.patch("/users/{user_id}", tags=['users'])
+async def update_user(user_id: Annotated[int, Path(title="The ID of the wish item to get", ge=0, example=1)],
+                      user: UserBase):
+    results = {"user_id": user_id, "wish": user}
+    return results
